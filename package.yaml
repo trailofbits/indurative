@@ -1,0 +1,28 @@
+name: indurative
+
+author: JP Smith
+
+version: 0.0.0.1
+
+ghc-options: -Wall -fno-warn-orphans
+
+default-extensions:
+  - OverloadedStrings
+
+dependencies:
+  - array
+  - base
+  - binary
+  - bytestring
+  - containers
+  - cryptonite
+  - finite-typelits
+  - hashable
+  - lens
+  - memory
+  - unordered-containers
+  - vector
+  - vector-sized
+
+library:
+  source-dirs: lib/

@@ -1,0 +1,37 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 1046b9b63887a8b5429b465b9e570d0f41589b619eb5687015d923e439e7ce70
+
+name:           indurative
+version:        0.0.0.1
+author:         JP Smith
+build-type:     Simple
+
+library
+  exposed-modules:
+      Indurative
+  other-modules:
+      Paths_indurative
+  hs-source-dirs:
+      lib/
+  default-extensions: OverloadedStrings
+  ghc-options: -Wall -fno-warn-orphans
+  build-depends:
+      array
+    , base
+    , binary
+    , bytestring
+    , containers
+    , cryptonite
+    , finite-typelits
+    , hashable
+    , lens
+    , memory
+    , unordered-containers
+    , vector
+    , vector-sized
+  default-language: Haskell2010
