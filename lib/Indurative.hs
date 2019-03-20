@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -6,6 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
@@ -32,8 +34,10 @@ import Data.Finite (Finite, packFinite, separateSum, weakenN)
 import Data.Foldable (Foldable(..))
 import Data.Functor.Identity (Identity(..))
 import Data.List (sortBy)
+import Data.Maybe (isJust)
 import Data.Ord (comparing)
 import Data.Proxy (Proxy(..))
+-- import Data.Reflection (Reifies(..), reifyNat)
 import Data.Type.Bool
 import Data.Vector.Sized (Vector)
 import GHC.TypeLits
@@ -205,8 +209,10 @@ type Provable a t v = ( Binary (Index (t v)), Binary v, HashAlgorithm a, Ord (In
 instance Provable a t v => Authenticate (Auth a t v) where
   -- Right now, our digest includes a list of keys, since otherwise we can't verify when the prover
   -- says a key doesn't have a value. This is kinda ugly and I'd like to not do it, but idk how.
-  -- W2B efficient exclusion proofs?
-  type HashFor  (Auth a t v) = ([Index (t v)], Digest a)
+  -- W2B efficient exclusion proofs? Currently though, HashFor keeps a rule for key inclusion around.
+  -- This can be omitted trivially (_1 .~ const True) in settings where we aren't worried about fake
+  -- negative results
+  type HashFor  (Auth a t v) = (Index (t v) -> Bool, Digest a)
   type ProofFor (Auth a t v) = BMP (Digest a)
   type Access   (Auth a t v) = AtIndex (Index (t v))
 
@@ -216,8 +222,8 @@ instance Provable a t v => Authenticate (Auth a t v) where
                                   ((BL _ n), BFork l r _) -> BL (btopHash r) <$> go n l
                                   ((BR _ n), BFork l r _) -> BR (btopHash l) <$> go n r
                                   _                       -> (Nothing, BZ)
-  digest (Auth t) = (fst <$> t ^@.. ifolded, btopHash $ bmtOf t)
-  verify _ (l, d) (AtIndex i m) t = d == bfoldPath hashCons (hash $ fmap (i,) m) t || not (i `elem` l)
+  digest (Auth t) = (\k -> isJust $ t ^? ifolded . index k, btopHash $ bmtOf t)
+  verify _ (p, d) (AtIndex i m) t = d == bfoldPath hashCons (hash $ fmap (i,) m) t || not (p i)
 
 deriving via Auth SHA3_256 (HashMap k) v instance (Hashable k, Ord k, Binary k, Binary v) => Authenticate (HashMap k v)
 deriving via Auth SHA3_256 (Map     k) v instance (Ord k, Binary k, Binary v) =>             Authenticate (Map     k v)
@@ -285,7 +291,7 @@ instance Merkleize 0 where
   merkleizeV = const $ Root Nothing
   merkleizeI = const Z
 
-instance Merkleize 1 where
+instance {-# OVERLAPPING #-} Merkleize 1 where
   merkleizeV = Root . Just . S.head
   merkleizeI = const Z
 

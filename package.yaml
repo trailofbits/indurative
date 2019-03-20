@@ -20,6 +20,7 @@ dependencies:
   - hashable
   - lens
   - memory
+  - reflection
   - unordered-containers
   - vector
   - vector-sized

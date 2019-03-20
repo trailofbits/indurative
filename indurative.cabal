@@ -4,11 +4,13 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1046b9b63887a8b5429b465b9e570d0f41589b619eb5687015d923e439e7ce70
+-- hash: 2ed34584942f8d785c86d05aa5839693861a5ed1b75a54fab6984e22908b9a1e
 
 name:           indurative
 version:        0.0.0.1
 author:         JP Smith
+license:        Apache-2.0
+license-file:   LICENSE
 build-type:     Simple
 
 library
@@ -31,6 +33,7 @@ library
     , hashable
     , lens
     , memory
+    , reflection
     , unordered-containers
     , vector
     , vector-sized
