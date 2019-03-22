@@ -20,10 +20,18 @@ dependencies:
   - hashable
   - lens
   - memory
-  - reflection
   - unordered-containers
   - vector
   - vector-sized
 
 library:
   source-dirs: lib/
+
+tests:
+  indurative-test:
+    source-dirs: test/
+    main: Main.hs
+    dependencies:
+      - indurative
+      - QuickCheck
+      - quickcheck-instances
