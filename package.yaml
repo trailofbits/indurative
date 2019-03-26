@@ -10,6 +10,7 @@ default-extensions:
   - OverloadedStrings
 
 dependencies:
+  - aeson
   - array
   - base
   - binary
@@ -19,7 +20,9 @@ dependencies:
   - finite-typelits
   - hashable
   - lens
+  - lens-aeson
   - memory
+  - text
   - unordered-containers
   - vector
   - vector-sized
