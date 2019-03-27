@@ -50,7 +50,7 @@ jFoldPath _ i Here               = i
 jFoldPath f i (AtKey _ (l, r) n) = foldr1 f (l ++ [jFoldPath f i n] ++ r)
 jFoldPath f i (AtIx  _ (l, r) n) = foldr1 f (l ++ [jFoldPath f i n] ++ r)
 
-data IxedJSON a = IxedJSON Value
+data IxedJSON a = IxedJSON Value deriving Show
 
 ijMap :: (Value -> Value) -> IxedJSON a -> IxedJSON a
 ijMap f (IxedJSON a) = IxedJSON $ f a
@@ -83,5 +83,5 @@ instance (FromJSON a, ToJSON a) => Authenticate (IxedJSON a) where
     Just (Just v, p') -> (Just v, withStartOf p (join bimap (fmap jTopHash) $ others p j) p')
     _                 -> (Nothing, Here)
   digest (IxedJSON j) = (\p -> isJust $ j ^? tOf p, jTopHash j)
-  verify _ (f, _) Nothing  = not . f . fmap (const ())
-  verify _ (_, d) (Just v) = (d ==) . jFoldPath hashCons (jhash $ toJSON v)
+  verify _ jp (f, d) m p = Just False /= fmap (\v -> d == jFoldPath hashCons (jhash $ toJSON v) p) m
+                        || not (f jp) && jp == fmap (const ()) p

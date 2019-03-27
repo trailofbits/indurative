@@ -17,7 +17,6 @@ module Indurative where
 
 import Control.Lens
 import Crypto.Hash (Digest, HashAlgorithm, hashlazy)
-import Data.Bifunctor (Bifunctor(..))
 import Data.Binary (Binary, encode)
 import Data.ByteArray (convert)
 import Data.ByteString.Char8 (ByteString)
@@ -45,16 +44,21 @@ class Authenticate t where
 
   retrieve :: Index t -> t -> (Access t (IxValue t), ProofFor t)
   digest :: t -> HashFor t
-  verify :: Proxy t -> HashFor t -> Access t (IxValue t) -> ProofFor t -> Bool
+  verify :: Proxy t -> Index t -> HashFor t -> Access t (IxValue t) -> ProofFor t -> Bool
 
-retrieved :: Authenticate t => Proxy t -> HashFor t -> Access t (IxValue t) -> ProofFor t -> Bool
+retrieved :: Authenticate t => Proxy t -> Index t -> HashFor t -> Access t (IxValue t) -> ProofFor t -> Bool
 retrieved = verify
 
 -- Writes aren't authenticated because you just read before/after and make sure the same proof holds
 -- for both
-replaced :: Authenticate t => Proxy t -> (HashFor t, Access t (IxValue t))
-                                      -> (HashFor t, Access t (IxValue t)) -> ProofFor t -> Bool
-replaced t old new p = let check x = uncurry (verify t) x p in check old && check new
+replaced :: Authenticate t
+         => Proxy t
+         -> Index t
+         -> (HashFor t, Access t (IxValue t))
+         -> (HashFor t, Access t (IxValue t))
+         -> ProofFor t
+         -> Bool
+replaced t k old new p = let check x = uncurry (verify t k) x p in check old && check new
 
 --}}}
 
@@ -108,7 +112,7 @@ instance (Binary v, HashAlgorithm a) => Authenticate (MerkleTree 0 a v) where
 
   retrieve Z (Root v) = (Identity v, Z)
   digest = topHash
-  verify _ h v _ = h == hash v
+  verify _ _ h v _ = h == hash v
 
 foldPath :: (a -> a -> a) -> a -> MerklePath n a -> a
 foldPath _ i Z       = i
@@ -124,7 +128,7 @@ instance (Binary v, HashAlgorithm a, n ~ (m + 1), m ~ (n - 1), Authenticate (Mer
     retrieve (L _ n)   (Fork l r _) = L (topHash r) <$> retrieve n l
     retrieve (R _ n)   (Fork l r _) = R (topHash l) <$> retrieve n r
     digest = topHash
-    verify _ d v = (== d) . foldPath hashCons (hash v)
+    verify _ mp d v p = d == foldPath hashCons (hash v) p && fmap (const ()) p == mp
 
 -- }}}
 
@@ -133,7 +137,7 @@ instance (Binary v, HashAlgorithm a, n ~ (m + 1), m ~ (n - 1), Authenticate (Mer
 -- Data.Reflection could work instead? Regardless, this is works for the time being (:\)
 -- {{{
 
-data BlindMP a = BZ | BL a (BMP a) | BR a (BMP a) deriving Show
+data BlindMP a = BZ | BL a (BMP a) | BR a (BMP a) deriving (Eq, Functor, Show)
 
 type BMP a = BlindMP a
 
@@ -158,13 +162,16 @@ bmtOf t = go . fmap Just . sortBy (comparing fst) $ t ^@.. ifolded where
     lf  = go $ take padTo l 
     rf  = go $ drop padTo l ++ replicate (2 * padTo - length l) Nothing
 
-bmpOf :: (FoldableWithIndex (Index (t v)) t, Ord (Index (t v)))
-      => Index (t v) -> t v -> Maybe (BMP ())
-bmpOf k t = ifind (const . (k ==)) t *> go (nextPower2 $ length t) (lengthOf (ifolded . indices (< k)) t) where
+bmpOf' :: Int -> Int -> Maybe (BMP ())
+bmpOf' d n = go (nextPower2 d) n where
   go l i | l <= i           = Nothing
          | (l, i) == (1, 0) = Just BZ
          | otherwise = let l' = l `div` 2 in if i < l' then BL () <$> go l' i
                                                        else BR () <$> go l' (i - l')
+
+bmpOf :: (FoldableWithIndex (Index (t v)) t, Ord (Index (t v)))
+      => Index (t v) -> t v -> Maybe (BMP ())
+bmpOf k t = ifind (const . (k ==)) t *> bmpOf' (length t) (lengthOf (ifolded . indices (< k)) t)
 
 bfoldPath :: (a -> a -> a) -> a -> BMP a -> a
 bfoldPath _ i BZ       = i
@@ -196,17 +203,19 @@ instance Provable a t v => Authenticate (Auth a t v) where
   -- This can be omitted trivially (_1 .~ const True) in settings where we aren't worried about fake
   -- negative results
   type HashFor  (Auth a t v) = (Index (t v) -> Bool, Digest a)
-  type ProofFor (Auth a t v) = BMP (Digest a)
-  type Access   (Auth a t v) = AtIndex (Index (t v))
+  type ProofFor (Auth a t v) = (Int, Int, BMP (Digest a))
+  type Access   (Auth a t v) = Maybe
 
-  retrieve k (Auth t) = first (AtIndex k) $ case bmpOf k t of Nothing  -> (Nothing, BZ)
-                                                              (Just p) -> go p $ bmtOf @a t
-    where go p m = case (p, m) of (BZ,     BRoot v)     -> (snd <$> v, BZ)
-                                  (BL _ n, BFork l r _) -> BL (btopHash r) <$> go n l
-                                  (BR _ n, BFork l r _) -> BR (btopHash l) <$> go n r
-                                  _                     -> (Nothing, BZ)
-  digest (Auth t) = (\k -> isJust $ t ^? ifolded . index k, btopHash $ bmtOf t)
-  verify _ (p, d) (AtIndex i m) t = d == bfoldPath hashCons (hash $ (i,) <$> m) t || not (p i)
+  retrieve k (Auth t) = fmap (length t, lengthOf (ifolded . indices (< k)) t,)
+    <$> maybe (Nothing, BZ) (go $ bmtOf @a t) $ bmpOf k t where
+      go m p = case (m, p) of (BRoot v    , BZ)     -> (snd <$> v, BZ)
+                              (BFork l r _, BL _ n) -> BL (btopHash r) <$> go l n
+                              (BFork l r _, BR _ n) -> BR (btopHash l) <$> go r n
+                              _                     -> (Nothing, BZ)
+  digest (Auth t) = (isJust . flip preview t . ix, btopHash $ bmtOf t)
+  verify _ k (p, d) v (l, i, t) = bmpOf' l i == Just (const () <$> t)
+                               && d == bfoldPath hashCons (hash $ (k,) <$> v) t
+                               || not (p k)
 
 -- I don't want to actually ship all these instances, but they should compile!
 {-
