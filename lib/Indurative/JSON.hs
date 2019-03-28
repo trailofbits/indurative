@@ -8,7 +8,7 @@
 module Indurative.JSON where
 
 import Control.Lens
-import Control.Monad (join)
+import Control.Monad (join, void)
 import Crypto.Hash (Digest, HashAlgorithm, SHA3_256)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -50,7 +50,7 @@ jFoldPath _ i Here               = i
 jFoldPath f i (AtKey _ (l, r) n) = foldr1 f (l ++ [jFoldPath f i n] ++ r)
 jFoldPath f i (AtIx  _ (l, r) n) = foldr1 f (l ++ [jFoldPath f i n] ++ r)
 
-data IxedJSON a = IxedJSON Value deriving Show
+newtype IxedJSON a = IxedJSON Value deriving Show
 
 ijMap :: (Value -> Value) -> IxedJSON a -> IxedJSON a
 ijMap f (IxedJSON a) = IxedJSON $ f a
@@ -84,4 +84,4 @@ instance (FromJSON a, ToJSON a) => Authenticate (IxedJSON a) where
     _                 -> (Nothing, Here)
   digest (IxedJSON j) = (\p -> isJust $ j ^? tOf p, jTopHash j)
   verify _ jp (f, d) m p = Just False /= fmap (\v -> d == jFoldPath hashCons (jhash $ toJSON v) p) m
-                        || not (f jp) && jp == fmap (const ()) p
+                        || not (f jp) && jp == void p

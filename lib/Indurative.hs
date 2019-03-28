@@ -16,6 +16,7 @@
 module Indurative where
 
 import Control.Lens
+import Control.Monad (void)
 import Crypto.Hash (Digest, HashAlgorithm, hashlazy)
 import Data.Binary (Binary, encode)
 import Data.ByteArray (convert)
@@ -128,7 +129,7 @@ instance (Binary v, HashAlgorithm a, n ~ (m + 1), m ~ (n - 1), Authenticate (Mer
     retrieve (L _ n)   (Fork l r _) = L (topHash r) <$> retrieve n l
     retrieve (R _ n)   (Fork l r _) = R (topHash l) <$> retrieve n r
     digest = topHash
-    verify _ mp d v p = d == foldPath hashCons (hash v) p && fmap (const ()) p == mp
+    verify _ mp d v p = d == foldPath hashCons (hash v) p && void p == mp
 
 -- }}}
 
@@ -163,7 +164,7 @@ bmtOf t = go . fmap Just . sortBy (comparing fst) $ t ^@.. ifolded where
     rf  = go $ drop padTo l ++ replicate (2 * padTo - length l) Nothing
 
 bmpOf' :: Int -> Int -> Maybe (BMP ())
-bmpOf' d n = go (nextPower2 d) n where
+bmpOf' = go . nextPower2 where
   go l i | l <= i           = Nothing
          | (l, i) == (1, 0) = Just BZ
          | otherwise = let l' = l `div` 2 in if i < l' then BL () <$> go l' i
@@ -213,7 +214,7 @@ instance Provable a t v => Authenticate (Auth a t v) where
                               (BFork l r _, BR _ n) -> BR (btopHash l) <$> go r n
                               _                     -> (Nothing, BZ)
   digest (Auth t) = (isJust . flip preview t . ix, btopHash $ bmtOf t)
-  verify _ k (p, d) v (l, i, t) = bmpOf' l i == Just (const () <$> t)
+  verify _ k (p, d) v (l, i, t) = bmpOf' l i == Just (void t)
                                && d == bfoldPath hashCons (hash $ (k,) <$> v) t
                                || not (p k)
 
