@@ -19,12 +19,8 @@ import Control.Lens
 import Control.Monad (void)
 import Crypto.Hash (Digest, HashAlgorithm, hashlazy)
 import Data.Binary (Binary, encode)
-import Data.ByteArray (convert)
-import Data.ByteString.Char8 (ByteString)
-import Data.Foldable (Foldable(..))
-import Data.Functor.Identity (Identity(..))
+import Data.ByteArray (Bytes, convert)
 import Data.List (sortBy)
-import Data.Maybe (isJust)
 import Data.Ord (comparing)
 import Data.Proxy (Proxy(..))
 import GHC.TypeLits
@@ -86,7 +82,7 @@ topHash (Root (hash -> h)) = h
 topHash (Fork _ _      h)  = h
 
 hashCons :: HashAlgorithm a => Digest a -> Digest a -> Digest a
-hashCons x y = H.hash (convert x <> convert y :: ByteString)
+hashCons x y = H.hash (convert x <> convert y :: Bytes)
 
 mkFork :: (Binary v, HashAlgorithm a) => MT (d - 1) a v -> MT (d - 1) a v -> MT d a v
 mkFork l r = Fork l r $ hashCons (topHash l) (topHash r)
@@ -99,7 +95,7 @@ data MerklePath (d :: Nat) a where
 deriving instance Eq a => Eq (MerklePath n a)
 deriving instance Functor (MerklePath n)
 
-type instance Index    (MerkleTree d a v) = MerklePath d ()
+type instance Index (MerkleTree d a v) = MerklePath d ()
 
 type MP = MerklePath
 
@@ -140,39 +136,31 @@ instance (Binary v, HashAlgorithm a, n ~ (m + 1), m ~ (n - 1), Authenticate (Mer
 
 data BlindMP a = BZ | BL a (BMP a) | BR a (BMP a) deriving (Eq, Functor, Show)
 
-type BMP a = BlindMP a
-
 data BlindMT a x = BRoot x | BFork (BMT a x) (BMT a x) (Digest a) deriving Show
 
+type BMP a = BlindMP a
 type BMT = BlindMT
 
-btopHash :: (Binary x, HashAlgorithm a) => BMT a x -> Digest a
-btopHash (BRoot x)     = hash x
-btopHash (BFork _ _ h) = h
+btopHash :: (Binary x, HashAlgorithm a) => BlindMT a x -> Digest a
+btopHash (BRoot (hash -> h)) = h
+btopHash (BFork _ _      h)  = h
 
 nextPower2 :: Integral a => a -> a
-nextPower2 0 = 1
-nextPower2 n = 2 ^ (ceiling (logBase 2 $ fromIntegral n :: Float) :: Int)
+nextPower2 n = if n == 0 then 1 else 2 ^ (ceiling (logBase 2 $ fromIntegral n :: Float) :: Int)
 
-bmtOf :: Provable a t v => t v -> BMT a (Maybe (Index (t v), IxValue (t v)))
-bmtOf t = go . fmap Just . sortBy (comparing fst) $ t ^@.. ifolded where
+bmtOf :: Provable a t v => t v -> BlindMT a (Maybe (Index (t v), IxValue (t v)))
+bmtOf t = go . fmap Just . sortBy (comparing fst) $ itoList t where
   go []  = BRoot Nothing
   go [x] = BRoot x
-  go l   = BFork lf rf $ hashCons (btopHash lf) (btopHash rf) where
-    padTo = div (nextPower2 $ length l) 2
-    lf  = go $ take padTo l 
-    rf  = go $ drop padTo l ++ replicate (2 * padTo - length l) Nothing
+  go l   = let padTo = div (nextPower2 $ length l) 2
+               rf    = go $ drop padTo l ++ replicate (2 * padTo - length l) Nothing
+               lf    = go $ take padTo l in BFork lf rf $ hashCons (btopHash lf) (btopHash rf)
 
-bmpOf' :: Int -> Int -> Maybe (BMP ())
-bmpOf' = go . nextPower2 where
-  go l i | l <= i           = Nothing
-         | (l, i) == (1, 0) = Just BZ
-         | otherwise = let l' = l `div` 2 in if i < l' then BL () <$> go l' i
-                                                       else BR () <$> go l' (i - l')
-
-bmpOf :: (FoldableWithIndex (Index (t v)) t, Ord (Index (t v)))
-      => Index (t v) -> t v -> Maybe (BMP ())
-bmpOf k t = ifind (const . (k ==)) t *> bmpOf' (length t) (lengthOf (ifolded . indices (< k)) t)
+bmpOf :: Int -> Int -> Maybe (BMP ())
+bmpOf = go . nextPower2 where go l i | l <= i           = Nothing
+                                     | (l, i) == (1, 0) = Just BZ
+                                     | otherwise        = let l' = l `div` 2 in
+                                         if i < l' then BL () <$> go l' i else BR () <$> go l' (i - l')
 
 bfoldPath :: (a -> a -> a) -> a -> BMP a -> a
 bfoldPath _ i BZ       = i
@@ -189,11 +177,6 @@ newtype Auth a t v = Auth (t v) deriving Functor
 type instance Index   (Auth a t v) = Index (t v)
 type instance IxValue (Auth a t v) = IxValue (t v)
 
-data AtIndex i v = AtIndex i (Maybe v) deriving Show
-
-runAI :: AtIndex i v -> (i, Maybe v)
-runAI (AtIndex i v) = (i, v)
-
 type Provable a t v = ( Binary (Index (t v)), Binary v, HashAlgorithm a, Ord (Index (t v))
                       , Ixed (t v), FoldableWithIndex (Index (t v)) t, v ~ IxValue (t v))
 
@@ -207,16 +190,15 @@ instance Provable a t v => Authenticate (Auth a t v) where
   type ProofFor (Auth a t v) = (Int, Int, BMP (Digest a))
   type Access   (Auth a t v) = Maybe
 
-  retrieve k (Auth t) = fmap (length t, lengthOf (ifolded . indices (< k)) t,)
-    <$> maybe (Nothing, BZ) (go $ bmtOf @a t) $ bmpOf k t where
+  retrieve k (Auth t) = let (l, il) = (length t, lengthOf (ifolded . indices (< k)) t) in
+    fmap (l, il,) <$> maybe (Nothing, BZ) (go $ bmtOf @a t) $ bmpOf l il where
       go m p = case (m, p) of (BRoot v    , BZ)     -> (snd <$> v, BZ)
                               (BFork l r _, BL _ n) -> BL (btopHash r) <$> go l n
                               (BFork l r _, BR _ n) -> BR (btopHash l) <$> go r n
                               _                     -> (Nothing, BZ)
-  digest (Auth t) = (isJust . flip preview t . ix, btopHash $ bmtOf t)
-  verify _ k (p, d) v (l, i, t) = bmpOf' l i == Just (void t)
-                               && d == bfoldPath hashCons (hash $ (k,) <$> v) t
-                               || not (p k)
+  digest (Auth t) = (flip has t . ix, btopHash $ bmtOf t)
+  verify _ k (p, d) v (l, i, t) = bmpOf l i == Just (void t)
+                               && d == bfoldPath hashCons (hash $ (k,) <$> v) t || not (p k)
 
 -- I don't want to actually ship all these instances, but they should compile!
 {-

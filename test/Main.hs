@@ -50,7 +50,7 @@ testAuth t i = let (got, p) = retrieve i t
 
 testDerived :: forall t x. Derived t x => Proxy t -> Proxy x -> (String, Property)
 testDerived _ _ = (show $ typeRep @(t x),) . property $ uncurry fmap . fmap elements <$>
-  (arbitrary <&> \l -> (testAuth @(t x) l, fst <$> l ^@.. ifolded)) `suchThat` (not . null . snd)
+  (arbitrary <&> \l -> (testAuth @(t x) l, fst <$> itoList l)) `suchThat` (not . null . snd)
 
 genVal :: forall x. Basic x => Proxy x -> Int -> Gen Value
 genVal _ 0 = toJSON <$> arbitrary @x
