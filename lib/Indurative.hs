@@ -148,6 +148,7 @@ btopHash (BFork _ _      h)  = h
 nextPower2 :: Integral a => a -> a
 nextPower2 n = if n == 0 then 1 else 2 ^ (ceiling (logBase 2 $ fromIntegral n :: Float) :: Int)
 
+{-
 bmtOf :: Provable a t v => t v -> BlindMT a (Maybe (Index (t v), IxValue (t v)))
 bmtOf t = go . fmap Just . sortBy (comparing fst) $ itoList t where
   go []  = BRoot Nothing
@@ -201,7 +202,6 @@ instance Provable a t v => Authenticate (Auth a t v) where
                                && d == bfoldPath hashCons (hash $ (k,) <$> v) t || not (p k)
 
 -- I don't want to actually ship all these instances, but they should compile!
-{-
 deriving via Auth SHA3_256 (HashMap k) v instance (Hashable k, Ord k, Binary k, Binary v) => Authenticate (HashMap k v)
 deriving via Auth SHA3_256 (Map     k) v instance (Ord k, Binary k, Binary v) =>             Authenticate (Map     k v)
 deriving via Auth SHA3_256 IntMap      v instance Binary v =>                                Authenticate (IntMap    v)
