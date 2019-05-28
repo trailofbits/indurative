@@ -19,7 +19,6 @@ import Data.Binary (Binary)
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
 import Indurative
-import Indurative.SparseMT
 import Indurative.JSON
 import Type.Reflection (Typeable, typeRep)
 import Test.QuickCheck hiding (Result(..))
