@@ -7,7 +7,6 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-} -- Necessary because of 'Indexed' weirdness
 
 module Indurative (Auth(..), Authenticate(..), hash, hashCons, nullHashes, replaced) where
 
@@ -157,6 +156,8 @@ climb l  = snd . head . foldl' up l $ take (hLen $ Proxy @a) nullHashes
 --  / \ / \ / \ / \
 --  . . 0 * . . . .
 --
+-- Also ref. comments for 'check'
+--
 -- For brevity, we omit all null hashes from this proof since they can be re-derived by the verifier
 -- NOTE: This does not check that the provided node is in the provided layer.
 zig :: forall a. HashAlgorithm a => [SparseNode a] -> SparseNode a -> SparsePath a
@@ -177,15 +178,25 @@ zig = go 0 where
 
 -- Given a root hash, a path up a Merkle tree (like that returned by 'zig'), and the node at which
 -- this path started, check the validity of the proof by recursively hashing and concatenating
--- through it, then ensuring the final hash is the desired/saved root hash.
+-- through it, then ensuring the final hash is the desired/saved root hash. Diagram follows:
+--
+--        [0]       0     - our node
+--      /     \     x     - on the path from our node to the top
+--     x       b    [a,b] - our proof
+--    / \           .     - empty node, omitted from our proof
+--   a   x          [0]   - root
+--      / \        
+--      0 .         check := cons(cons(a, cons(0, null hash)), b) == [0]
+--
+-- Also ref. comments for 'zig'
 check :: forall a. HashAlgorithm a => Digest a -> SparseNode a -> SparsePath a -> Bool
 check t = go 0 where
   -- As before, @go@ just keeps track of the height.
-  -- If every hash in the proof was null, we just walk our node up an otherwise-empty tree.
+  -- If every hash in the proof is null, we just walk our node up an otherwise-empty tree.
   go n x      []           = let proof = snd . head . foldl' up [x] in
     t == proof (drop n $ take (hLen $ Proxy @a) nullHashes)
   -- If there are hashes in the proof, concatenate with null hashes til we're at the height where
-  -- they start appearing, then concatenate with them instead.
+  -- they start appearing, then concatenate with non-null hashes instead instead.
   go n (i, r) ((h,x) : hs) = go (n + 1) (shiftR i 1, debranch i r h') l' where
      (h', l') = if n == h then (x, hs) else (nullHashes !! n, (h,x) : hs)
 
