@@ -7,6 +7,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Indurative (Auth(..), Authenticate(..), hash, hashCons, nullHashes, replaced) where
 
