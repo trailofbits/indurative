@@ -1,11 +1,12 @@
-# Indurative
+## What is Indurative? (short version)
 
-Indurative is a project to explore automatically deriving [authenticated](https://www.cs.umd.edu/~mwh/papers/gpads.pdf) semantics for working with common data structures with [`DerivingVia`](https://www.kosmikus.org/DerivingVia/deriving-via-paper.pdf).
-Right now, it works (somewhat inefficiently) for any `FoldableWithIndex` with `Binary` keys and values.
+Indurative is a project designed to allow programmers to treat many Haskell containers as [authenticated](https://www.cs.umd.edu/~mwh/papers/gpads.pdf) data structures.
+This means that they can delegate custody to a third party, then cryptographically verify all reads and writes performed by that third party are licit.
+Right now, it works (somewhat inefficiently) for most common containers.
 
 Note that this is new, untested cryptographic code, and you probably shouldn't rely on it right now.
 
-## OK, but what does that mean.
+## What is Indurative? (slightly longer version)
 
 Indurative allows you to treat almost any indexed data structure as an authenticated data structure using its natural indexing scheme.
 This means that you can simply take your existing Haskell code and add trustless third party data custody without any new data structures or cryptographic logic (among other things).
@@ -30,7 +31,10 @@ One example of an authenticated data structure many readers may be familiar with
 Merkle trees are designed to allow for easy inclusion proofs, verifiable using only the top hash.
 There are also [sparse Merkle trees](https://github.com/google/trillian/blob/master/docs/papers/RevocationTransparency.pdf) as invented by Laurie and Kasper, which support efficient _ex_clusion proofs as well (and are used heavily by Indurative).
 
-## Can you show me an example?
+Indurative uses Haskell's [`DerivingVia`](https://www.kosmikus.org/DerivingVia/deriving-via-paper.pdf) language extension to derive authenticated semantics for any [`FoldableWithIndex`](https://hackage.haskell.org/package/lens-4.17.1/docs/Control-Lens-Indexed.html#t:FoldableWithIndex) with [`Binary`](https://hackage.haskell.org/package/binary-0.10.0.0/docs/Data-Binary.html#t:Binary) keys and values.
+It does this by hashing each index, then placing the value in the index corresponding to that hash of a sparse Merkle tree, then using that tree to compute digests and produce or verify access proofs.
+
+### Can you show me an example?
 
 I want to enable [binary transparency](https://wiki.mozilla.org/Security/Binary_Transparency) for a package server I'm writing.
 Currently, the package server has a `Map Name Binary` that it essentially just serves over http.
