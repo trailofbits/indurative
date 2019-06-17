@@ -4,9 +4,9 @@ Indurative lets you treat many Haskell containers as [authenticated](https://www
 
 This is new, untested cryptographic code. Standard warnings apply.
 
-## Authenticated Data Structures
+## Using Authenticated Data Structures
 
-Indurative can treat almost any indexed data structure as an authenticated data structure using its natural indexing scheme. You can take your existing Haskell code and add trustless third party data custody without any new data structures or cryptographic logic
+Indurative can treat almost any indexed data structure as an authenticated data structure using its natural indexing scheme. You can take your existing Haskell code and add trustless third party data custody without any new data structures or cryptographic logic.
 
 Authenticated data structures enable workflows like:
 
