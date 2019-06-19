@@ -1,6 +1,6 @@
 ## Indurative
 
-Indurative lets you easily build [authenticated](https://www.cs.umd.edu/~mwh/papers/gpads.pdf) data structures from many Haskell containers. You can delegate custody to a third party using an authenticated data structure, then cryptographically verify all reads and writes performed by that third party. Certificate and binary transparency are example use cases enabled by authenticated data structures that you can build with Indurative.
+Indurative lets you easily build [authenticated](https://www.cs.umd.edu/~mwh/papers/gpads.pdf) data structures from many Haskell containers (take a look to [our blog post](https://blog.trailofbits.com/2019/06/17/leaves-of-hash/) about it!). You can delegate custody to a third party using an authenticated data structure, then cryptographically verify all reads and writes performed by that third party. Certificate and binary transparency are example use cases enabled by authenticated data structures that you can build with Indurative.
 
 This is new, untested cryptographic code. Standard warnings apply.
 
