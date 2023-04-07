@@ -1,17 +1,17 @@
 name: indurative
 
-author: JP Smith
+author: Trail of Bits
 
 version: 0.0.0.1
 
 ghc-options: -Wall -fno-warn-orphans
 
+language: GHC2021
+
 default-extensions:
   - OverloadedStrings
 
 dependencies:
-  - aeson
-  - array
   - base
   - binary
   - bits-bytestring
@@ -21,12 +21,10 @@ dependencies:
   - finite-typelits
   - hashable
   - lens
-  - lens-aeson
   - memory
   - text
   - unordered-containers
   - vector
-  - vector-sized
 
 library:
   source-dirs: lib/
