@@ -1,11 +1,4 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -14,20 +7,18 @@ module Indurative (Auth(..), Authenticate(..), hash, hashCons, nullHashes, repla
 import Control.Lens
 import Control.Monad (join)
 import Crypto.Hash (Digest, HashAlgorithm, hashlazy)
-import Data.Bifunctor (Bifunctor(..))
+import Crypto.Hash qualified as H
 import Data.Binary (Binary, encode)
 import Data.Bits (Bits(..))
 import Data.Bits.ByteString ()
+import Data.ByteArray qualified  as BA
 import Data.ByteString (ByteString)
-import Data.Proxy (Proxy(..))
+import Data.ByteString qualified as BS
+import Data.Kind (Type)
 import Data.List (find, foldl', sortBy)
-import Data.Maybe (fromMaybe)
 import Data.Ord (comparing)
+import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic)
-
-import qualified Crypto.Hash     as H
-import qualified Data.ByteArray  as BA
-import qualified Data.ByteString as BS
 
 -- Class definition
 -- {{{
@@ -36,11 +27,11 @@ import qualified Data.ByteString as BS
 -- Ref. https://www.cs.umd.edu/~mwh/papers/gpads.pdf
 class Authenticate t where
   -- | The type of the "digest" (as used in Miller et. al.)
-  type HashFor  t :: *
+  type HashFor  t :: Type
   -- | The type of an access proof ("the set of digests needed to compute the root digest")
-  type ProofFor t :: *
+  type ProofFor t :: Type
   -- | The return type of a query ('Maybe' if the query can fail, 'Identity' if it can't, etc.)
-  type Access   t :: * -> *
+  type Access   t :: Type -> Type
 
   -- | Calculate the digest of some structure
   digest :: t -> HashFor t
@@ -162,7 +153,7 @@ climb l  = snd . head . foldl' up l $ take (hLen $ Proxy @a) nullHashes
 -- For brevity, we omit all null hashes from this proof since they can be re-derived by the verifier
 -- NOTE: This does not check that the provided node is in the provided layer.
 zig :: forall a. HashAlgorithm a => [SparseNode a] -> SparseNode a -> SparsePath a
-zig = go 0 where 
+zig = go 0 where
   go :: Int -> [SparseNode a] -> SparseNode a -> SparsePath a
   -- @go@ is like 'zig' but takes a height argument. If it's the tree height, we're done!
   go h l (i, x) = let nullHash = nullHashes !! h in if h == hLen (Proxy @a) then [] else
@@ -171,7 +162,7 @@ zig = go 0 where
     -- what our neighbor is.
     let next = go (h + 1) (up l nullHash) . (shiftR i 1,) . debranch i x in
     -- If we aren't at the tree height, see if any non-empty nodes are next to our nodes.
-    case find ((== xor (hOne $ Proxy @ a) i) . fst) l of
+    case find ((== xor (hOne $ Proxy @a) i) . fst) l of
       -- If there aren't any, we're next to an empty node
       Nothing       ->            next nullHash
       -- If there are, we're next to that node, and should keep track of it in our proof.
@@ -186,7 +177,7 @@ zig = go 0 where
 --     x       b    [a,b] - our proof
 --    / \           .     - empty node, omitted from our proof
 --   a   x          [0]   - root
---      / \        
+--      / \
 --      0 .         check := cons(cons(a, cons(0, null hash)), b) == [0]
 --
 -- Also ref. comments for 'zig'
@@ -216,7 +207,7 @@ sparseHash = climb . baseLayer
 sparseGet :: forall a k t v. (Binary k, Binary v, FoldableWithIndex k t, HashAlgorithm a)
           => k -> t v -> (Maybe v, SparsePath a)
 sparseGet i l = let res = snd <$> ifind (\j _ -> hash @_ @a j == hash i) l in
-  (res,) . zig (baseLayer l) . (bsHash (Proxy @a) i,) . fromMaybe (head nullHashes) $ hash <$> res
+  (res,) . zig (baseLayer l) . (bsHash (Proxy @a) i,) $ maybe (head nullHashes) hash res
 
 -- Given an index into some @FoldableWithIndex@, the root hash of its sparse Merkle tree
 -- representation, a claimed value at that index, and a proof for the claim, check whether the

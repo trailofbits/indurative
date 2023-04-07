@@ -1,12 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -37,12 +30,14 @@ type Basic x = (Arbitrary x, Binary x, Eq x, Show x, Typeable x)
 type Derived t x = (FoldableWithIndex (Index (t x)) t, Arbitrary (t x), Authed (t x), Basic x)
 
 testAuth :: forall t. Authed t => t -> Index t -> Result
-testAuth t i = let (got, p) = retrieve i t
-                   describe = concat ["asked for ", show i, " from ", show t]
-                   mismatch = concat [" but got ", show got, " instead of ", show $ t ^? ix i] in if
-  | got /= t ^? ix i                         -> failed {reason = describe ++ mismatch}
-  | not $ verify @t Proxy i (digest t) got p -> failed {reason = describe ++ " but proof failed!"}
-  | otherwise                                -> succeeded
+testAuth t i =
+  let
+    (got, p) = retrieve i t
+    describe = concat ["asked for ", show i, " from ", show t]
+    mismatch = concat [" but got ", show got, " instead of ", show $ t ^? ix i]
+  in if | got /= t ^? ix i                         -> failed {reason = describe ++ mismatch}
+        | not $ verify @t Proxy i (digest t) got p -> failed {reason = describe ++ " but proof failed!"}
+        | otherwise                                -> succeeded
 
 testDerived :: forall t x. Derived t x => Proxy t -> Proxy x -> (String, Property)
 testDerived _ _ = (show $ typeRep @(t x),) . property $ uncurry fmap . fmap elements <$>
